@@ -1,12 +1,10 @@
 ZendService\Apple\Apns [![Build Status](https://travis-ci.org/zendframework/ZendService_Apple_Apns.png?branch=master)](https://travis-ci.org/zendframework/ZendService_Apple_Apns)
 ================================
 
-> ## Repository abandoned 2019-12-05
->
-> This repository is no longer maintained.
-
 Provides support for Apple push notifications.
+Rewritten code for sending APNs via HTTP/2
 
+main code core taken from [here](https://gist.github.com/valfer/18e1052bd4b160fed86e6cbb426bb9fc)
 
 ## Requirements
 
@@ -17,7 +15,7 @@ Provides support for Apple push notifications.
 Install this library using [Composer](http://getcomposer.org/):
 
 ```bash
-$ composer require zendframework/zendservice-apple-apns
+$ composer require ohdonpiano/zendservice-apple-apns
 ```
 
 ## Documentation

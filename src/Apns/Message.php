@@ -25,6 +25,12 @@ class Message
     protected $id;
 
     /**
+     * App Bundle Id
+     * @var string
+     */
+    protected $bundleId;
+
+    /**
      * APN Token
      * @var string
      */
@@ -107,6 +113,39 @@ class Message
         }
         $this->id = $id;
 
+        return $this;
+    }
+
+    /**
+     * Get App Bundle Id
+     *
+     * @return string
+     */
+    public function getBundleId()
+    {
+        return $this->bundleId;
+    }
+
+    /**
+     * Set App Bundle Id
+     *
+     * @param  string  $bundleId
+     * @return Message
+     */
+    public function setBundleId($bundleId)
+    {
+        if (! is_string($bundleId)) {
+            throw new Exception\InvalidArgumentException(sprintf(
+                'App Bundle Id must be a string, "%s" given.',
+                gettype($bundleId)
+            ));
+        }
+        if (strlen($bundleId) == 0) {
+            throw new Exception\InvalidArgumentException(
+                'App Bundle Id must not be an empty string'
+            );
+        }
+        $this->bundleId = $bundleId;
         return $this;
     }
 
@@ -441,10 +480,10 @@ class Message
         } else {
             $payload = JsonEncoder::encode($payload);
         }
-        $length = strlen($payload);
-
+        return $payload;
+        /*$length = strlen($payload);
         return pack('CNNnH*', 1, $this->id, $this->expire, 32, $this->token)
             . pack('n', $length)
-            . $payload;
+            . $payload;*/
     }
 }

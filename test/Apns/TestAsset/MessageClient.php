@@ -91,12 +91,12 @@ class MessageClient extends ZfMessageClient
     }
 
     /**
-     * Write and Return Length
-     *
-     * @param  string $payload
-     * @return int
+     * @param string $app_bundle_id    the app bundle id
+     * @param string $payload          the payload to send (JSON)
+     * @param string $token            the token of the device
+     * @return mixed                   the status code
      */
-    protected function write($payload)
+    protected function write($app_bundle_id, $payload, $token)
     {
         if (! $this->isConnected()) {
             throw new Exception\RuntimeException('You must open the connection prior to writing data');

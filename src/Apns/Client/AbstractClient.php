@@ -10,9 +10,6 @@
 
 namespace ZendService\Apple\Apns\Client;
 
-use ZendService\Apple\Exception;
-use ZendService\Apple\Exception\StreamSocketClientException;
-
 /**
  * Apple Push Notification Abstract Client
  */
@@ -29,7 +26,10 @@ abstract class AbstractClient
      * APNS URIs
      * @var array
      */
-    protected $uris = [];
+    protected $uris = [
+        'https://api.development.push.apple.com',
+        'https://api.push.apple.com'
+    ];
 
     /**
      * Is Connected
@@ -38,10 +38,46 @@ abstract class AbstractClient
     protected $isConnected = false;
 
     /**
-     * Stream Socket
-     * @var Resource
+     * the cURL handle
+     * @var resource
      */
-    protected $socket;
+    protected $http2ch;
+
+    /**
+     * the selected environment
+     * @var int
+     */
+    protected $environment;
+
+    /**
+     * the certificate path
+     * @var string
+     */
+    protected $certificate;
+
+    /**
+     * the certificate passPhrase
+     * @var string
+     */
+    protected $passPhrase;
+
+    /**
+     * Curl response status
+     * @var int
+     */
+    protected $responseStatus;
+
+    /**
+     * Push response header identifier app-id
+     * @var string
+     */
+    protected $responseId;
+
+    /**
+     * Push response JSON body
+     * @var string
+     */
+    protected $responseBody;
 
     /**
      * Open Connection to APNS Service
@@ -67,69 +103,22 @@ abstract class AbstractClient
             throw new Exception\InvalidArgumentException('Certificate must be a valid path to a APNS certificate');
         }
 
-        $sslOptions = [
-            'local_cert' => $certificate,
-        ];
-        if ($passPhrase !== null) {
-            if (! is_scalar($passPhrase)) {
-                throw new Exception\InvalidArgumentException('SSL passphrase must be a scalar');
-            }
-            $sslOptions['passphrase'] = $passPhrase;
+        $this->environment = $environment;
+        $this->certificate = $certificate;
+        $this->passPhrase = $passPhrase;
+
+        $this->http2ch = curl_init();
+
+        if (false === $this->http2ch) {
+            throw new Exception\RuntimeException('Curl session not initialized');
         }
-        $this->connect($this->uris[$environment], $sslOptions);
+
+        if (!defined('CURL_HTTP_VERSION_2_0')) {
+            define('CURL_HTTP_VERSION_2_0', 3);
+        }
+        curl_setopt($this->http2ch, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2_0);
+
         $this->isConnected = true;
-
-        return $this;
-    }
-
-    /**
-     * Connect to Host
-     *
-     * @param  string         $host
-     * @param  array          $ssl
-     * @return AbstractClient
-     */
-    protected function connect($host, array $ssl)
-    {
-        set_error_handler(function ($errno, $errstr, $errfile, $errline) {
-            throw new StreamSocketClientException($errstr, $errno, 1, $errfile, $errline);
-        });
-
-        try {
-            $this->socket = stream_socket_client(
-                $host,
-                $errno,
-                $errstr,
-                ini_get('default_socket_timeout'),
-                STREAM_CLIENT_CONNECT,
-                stream_context_create(
-                    [
-                        'ssl' => $ssl,
-                    ]
-                )
-            );
-        } catch (StreamSocketClientException $e) {
-            restore_error_handler();
-            throw new Exception\RuntimeException(sprintf(
-                'Unable to connect: %s: %d (%s)',
-                $host,
-                $e->getCode(),
-                $e->getMessage()
-            ));
-        }
-
-        restore_error_handler();
-
-        if (! $this->socket) {
-            throw new Exception\RuntimeException(sprintf(
-                'Unable to connect: %s: %d (%s)',
-                $host,
-                $errno,
-                $errstr
-            ));
-        }
-        stream_set_blocking($this->socket, 0);
-        stream_set_write_buffer($this->socket, 0);
 
         return $this;
     }
@@ -141,11 +130,11 @@ abstract class AbstractClient
      */
     public function close()
     {
-        if ($this->isConnected && is_resource($this->socket)) {
-            fclose($this->socket);
+        if (false !== $this->http2ch) {
+            curl_close($this->http2ch);
+            $this->http2ch = false;
+            $this->isConnected = false;
         }
-        $this->isConnected = false;
-
         return $this;
     }
 
@@ -170,30 +159,71 @@ abstract class AbstractClient
         if (! $this->isConnected()) {
             throw new Exception\RuntimeException('You must open the connection prior to reading data');
         }
-        $data = false;
-        $read = [$this->socket];
-        $null = null;
-
-        if (0 < @stream_select($read, $null, $null, 1, 0)) {
-            $data = @fread($this->socket, (int) $length);
-        }
-
-        return $data;
+        return "";
     }
 
     /**
-     * Write Payload to the Server
-     *
-     * @param  string $payload
-     * @return int
+     * @param string $app_bundle_id    the app bundle id
+     * @param string $payload          the payload to send (JSON)
+     * @param string $token            the token of the device
+     * @return mixed                   the status code (see https://developer.apple.com/documentation/usernotifications/setting_up_a_remote_notification_server/handling_notification_responses_from_apns?language=objc)
      */
-    protected function write($payload)
+    protected function write($app_bundle_id, $payload, $token)
     {
-        if (! $this->isConnected()) {
-            throw new Exception\RuntimeException('You must open the connection prior to writing data');
+        $http2_server = $this->uris[$this->environment];
+
+        // url (endpoint)
+        $url = "{$http2_server}/3/device/{$token}";
+
+        // certificate
+        $cert = realpath($this->certificate);
+
+        // headers
+        $headers = [
+            "apns-topic: {$app_bundle_id}",
+            "User-Agent: My Sender"
+        ];
+
+        // other curl options
+        curl_setopt_array($this->http2ch, [
+            CURLOPT_URL => "{$url}",
+            CURLOPT_PORT => 443,
+            CURLOPT_HTTPHEADER => $headers,
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => $payload,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 30,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSLCERT => $cert,
+            CURLOPT_SSLCERTPASSWD => $this->passPhrase,
+            CURLOPT_HEADER => 1
+        ]);
+
+        $result = curl_exec($this->http2ch);
+        if ($result === false) {
+            throw new Exception\RuntimeException('Curl failed with error: ' . curl_error($this->http2ch));
         }
 
-        return @fwrite($this->socket, $payload);
+        $this->responseStatus = curl_getinfo($this->http2ch, CURLINFO_HTTP_CODE);
+
+        $parts = explode("\r\n\r\nHTTP/", $result);
+        $parts = (count($parts) > 1 ? 'HTTP/' : '').array_pop($parts);
+        list($headers, $body) = explode("\r\n\r\n", $parts, 2);
+        $this->responseBody = $body;
+
+        $headerList = explode("\r\n", $headers);
+        $this->responseId = "";
+        foreach ($headerList as $i => $header) {
+            if ($i > 0) {
+                list ($key, $value) = explode(': ', $header);
+                if (strcmp('apns-id', $key) == 0) {
+                    $this->responseId = $value;
+                    break;
+                }
+            }
+        }
+
+        return $result;
     }
 
     /**

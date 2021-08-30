@@ -12,9 +12,9 @@
 
 namespace ZendService\Apple\Apns\Client;
 
-use ZendService\Apple\Exception;
 use ZendService\Apple\Apns\Message as ApnsMessage;
 use ZendService\Apple\Apns\Response\Message as MessageResponse;
+use ZendService\Apple\Exception;
 
 /**
  * Message Client
@@ -26,18 +26,9 @@ use ZendService\Apple\Apns\Response\Message as MessageResponse;
 class Message extends AbstractClient
 {
     /**
-     * APNS URIs
-     * @var array
-     */
-    protected $uris = [
-        'tlsv1.2://gateway.sandbox.push.apple.com:2195',
-        'tlsv1.2://gateway.push.apple.com:2195',
-    ];
-
-    /**
      * Send Message
      *
-     * @param  ApnsMessage          $message
+     * @param ApnsMessage $message
      * @return MessageResponse
      */
     public function send(ApnsMessage $message)
@@ -46,11 +37,19 @@ class Message extends AbstractClient
             throw new Exception\RuntimeException('You must first open the connection by calling open()');
         }
 
-        $ret = $this->write($message->getPayloadJson());
+        $ret = $this->write(
+            $message->getBundleId(),
+            $message->getPayloadJson(),
+            $message->getToken()
+        );
         if ($ret === false) {
             throw new Exception\RuntimeException('Server is unavailable; please retry later');
         }
 
-        return new MessageResponse($this->read());
+        $response = new MessageResponse();
+        $response->setCode($this->responseStatus);
+        $response->setId($this->responseId);
+        $response->setBody($this->responseBody);
+        return $response;
     }
 }
