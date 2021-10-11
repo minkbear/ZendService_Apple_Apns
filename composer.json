@@ -1,5 +1,5 @@
 {
-    "name": "zendframework/zendservice-apple-apns",
+    "name": "minkbear/zendservice-apple-apns",
     "description": "OOP Zend Framework wrapper for Apple Push Notification Service",
     "license": "BSD-3-Clause",
     "keywords": [
@@ -17,6 +17,7 @@
         "chat": "https://zendframework-slack.herokuapp.com",
         "forum": "https://discourse.zendframework.com/c/questions/components"
     },
+    "minimum-stability": "dev",
     "require": {
         "php": "^5.6 || ^7.0",
         "zendframework/zend-json": "^2.0 || ^3.0",
